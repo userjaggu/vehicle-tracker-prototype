@@ -19,21 +19,21 @@ type vehiclesResponse struct {
 func GetVehicles(s *store.MemoryStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		// ── Only accept GET ─────────────────────────────────────────
+		//  Only accept GET
 		if r.Method != http.MethodGet {
 			writeError(w, http.StatusMethodNotAllowed, "Only GET is allowed")
 			return
 		}
 
-		// ── Fetch all locations from the store ──────────────────────
+		//  Fetch all locations from the store 
 		locations := s.GetAllLocations()
 
-		// ── Always return an array, even if empty ───────────────────
+		//  Always return an array, even if empty 
 		if locations == nil {
 			locations = []model.Location{}
 		}
 
-		// ── Respond ─────────────────────────────────────────────────
+		//  Respond 
 		writeJSON(w, http.StatusOK, vehiclesResponse{Vehicles: locations})
 	}
 }

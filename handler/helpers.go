@@ -5,7 +5,7 @@ import (
 	"net/http"
 )
 
-// ─── Shared helpers used by all handlers ────────────────────────────────────
+//Shared helpers used by all handlers 
 
 // writeJSON serializes v as JSON and writes it to the response.
 func writeJSON(w http.ResponseWriter, status int, v any) {

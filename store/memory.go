@@ -1,9 +1,9 @@
 // Package store provides in-memory storage for vehicle locations.
 //
 // Design decisions:
-//   - Uses a sync.RWMutex for safe concurrent access.
-//   - Each vehicle's entry is overwritten on every update (latest-only).
-//   - No persistence — data is lost when the process exits.
+//    Uses a sync.RWMutex for safe concurrent access.
+//    Each vehicle's entry is overwritten on every update (latest-only).
+//    No persistence — data is lost when the process exits.
 package store
 
 import (

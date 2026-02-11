@@ -20,20 +20,20 @@ import (
 func PostLocation(s *store.MemoryStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		// ── Only accept POST ────────────────────────────────────────
+		// Only accept POST 
 		if r.Method != http.MethodPost {
 			writeError(w, http.StatusMethodNotAllowed, "Only POST is allowed")
 			return
 		}
 
-		// ── Decode request body ─────────────────────────────────────
+		// Decode request body 
 		var loc model.Location
 		if err := json.NewDecoder(r.Body).Decode(&loc); err != nil {
 			writeError(w, http.StatusBadRequest, "Invalid JSON body")
 			return
 		}
 
-		// ── Validate required fields ────────────────────────────────
+		// Validate required fields 
 		if loc.VehicleID == "" {
 			writeError(w, http.StatusBadRequest, "vehicle_id is required")
 			return
@@ -43,10 +43,10 @@ func PostLocation(s *store.MemoryStore) http.HandlerFunc {
 			return
 		}
 
-		// ── Store the location ──────────────────────────────────────
+		// Store the location 
 		s.UpdateLocation(loc)
 
-		// ── Respond ─────────────────────────────────────────────────
+		// Respond 
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
