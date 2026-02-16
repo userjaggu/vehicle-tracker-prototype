@@ -14,7 +14,7 @@ import (
 	"github.com/jaggu/vehicle-tracker-prototype/server"
 )
 
-const defaultPort = 8080
+const defaultPort = 8081
 
 func main() {
 	if err := server.Run(defaultPort); err != nil {

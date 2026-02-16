@@ -15,12 +15,11 @@ import (
 // until the server is shut down or encounters a fatal error.
 func Run(port int) error {
 
-	// Create shared in-memory store 
+	// Create shared in-memory store
 	s := store.New()
 
-	// Register routes 
+	// Register routes
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", handler.GetDashboard(s))
 	mux.HandleFunc("/location", handler.PostLocation(s))
 	mux.HandleFunc("/vehicles", handler.GetVehicles(s))
 

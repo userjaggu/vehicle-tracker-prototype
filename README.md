@@ -29,6 +29,7 @@ Right now, I'm **only** focusing on the core flow. These are future improvements
 - **Authentication**: Anyone can send locations (fine for prototype)
 - **Database**: Data only stays in memory (resets when server restarts)
 - **Offline mode**: If the app is offline, no data is sent (simple for now)
+- **Web Dashboard**: Frontend visualization (focusing on core API only)
 - **GTFS-Realtime**: Not converting data to that standard yet
 - **Logging**: Not tracking server activity in files
 - **Android app**: Will build this next (this is the backend only)
@@ -41,11 +42,10 @@ Right now, I'm **only** focusing on the core flow. These are future improvements
 vehicle-tracker-prototype/
 ├── main.go              # The entry point - runs: go run main.go
 ├── server/
-│   └── server.go        # Sets up the routes and starts listening on port 8080
+│   └── server.go        # Sets up the routes and starts listening on port 8081
 ├── handler/
 │   ├── location.go      # Handles: POST /location (receives GPS updates)
 │   ├── vehicles.go      # Handles: GET /vehicles (returns all stored locations)
-│   ├── dashboard.go     # Serves the web dashboard at http://localhost:8080
 │   └── helpers.go       # Shared code for sending JSON responses
 ├── model/
 │   └── vehicle.go       # Defines what a "Location" looks like (GPS point)
@@ -76,36 +76,19 @@ go build -o vehicle-tracker
 ./vehicle-tracker
 
 # In another terminal, test it
-curl http://localhost:8080/vehicles
+curl http://localhost:8081/vehicles
 ```
-
-Then open your browser and visit:
-```
-http://localhost:8080
-```
-
-You'll see an interactive dashboard to test the API and view all tracked vehicles.
 
 ---
 
 ## How to Use It
 
-There are two ways to interact with the system:
-
-### Option 1: Web Dashboard
-
-Visit `http://localhost:8080` in your browser. You can:
-- View all tracked vehicles in real-time
-- Send test locations using the form
-- Click quick test buttons to test different scenarios
-- See error handling in action
-
-### Option 2: Command Line (curl)
+### Command Line (curl)
 
 **Send a vehicle location:**
 
 ```bash
-curl -X POST http://localhost:8080/location \
+curl -X POST http://localhost:8081/location \
   -H "Content-Type: application/json" \
   -d '{
     "vehicle_id": "bus-42",
@@ -123,7 +106,7 @@ curl -X POST http://localhost:8080/location \
 **Get all vehicle locations:**
 
 ```bash
-curl http://localhost:8080/vehicles
+curl http://localhost:8081/vehicles
 ```
 
 **The server responds with:**
