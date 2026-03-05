@@ -1,3 +1,5 @@
 module github.com/jaggu/vehicle-tracker-prototype
 
-go 1.21
+go 1.22
+
+require google.golang.org/protobuf v1.34.2
