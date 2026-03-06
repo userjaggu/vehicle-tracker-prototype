@@ -267,3 +267,143 @@ The feed follows the [GTFS-RT specification](https://gtfs.org/documentation/real
 
 PASS — 11/11 tests passed
 ```
+
+---
+
+## Design Decisions
+
+Several design choices were made intentionally for this prototype, each with a clear rationale:
+
+### In-Memory Storage
+
+The system uses a `sync.RWMutex`-protected Go map to store vehicle positions. This eliminates database setup complexity and lets anyone clone the repo and run it immediately with zero configuration.
+
+**Production path:** This would be replaced with PostgreSQL (for durability and historical analytics) or Redis (for high-throughput state with TTL-based expiry). The store is already behind an interface-like pattern (`MemoryStore` methods), making this swap straightforward.
+
+### FULL_DATASET GTFS-RT Feed
+
+The feed uses `FULL_DATASET` incrementality, meaning every response contains the complete set of active vehicles. This is simpler to implement and debug, and is the recommended approach for feeds with a manageable number of vehicles.
+
+**Tradeoff:** For very large fleets (1000+ vehicles), `DIFFERENTIAL` updates would reduce bandwidth. However, most target agencies (developing regions, first-time deployments) will have small fleets where `FULL_DATASET` is perfectly efficient.
+
+### Staleness Filtering (5-Minute Window)
+
+Vehicles that haven't reported in 5 minutes are excluded from the GTFS-RT feed. This prevents riders from seeing ghost vehicles that are no longer active.
+
+The 5-minute threshold is configurable (`model.DefaultStalenessThreshold`) and mirrors the behavior used by many production real-time transit systems. Server-side `receivedAt` tracking is used instead of client timestamps to prevent issues with incorrect device clocks.
+
+### Zero-Bearing / Zero-Speed Omission
+
+Bearing and speed are omitted from the protobuf output when their value is zero. This follows the proto2 optional field convention and avoids sending misleading data (a bearing of 0° means "North," which could be confused with "unknown").
+
+### Closure-Based Handler Pattern
+
+Handlers are functions that accept a `*store.MemoryStore` and return an `http.HandlerFunc`. This provides clean dependency injection without requiring a global variable or a full DI framework — idiomatic Go for a project of this size.
+
+---
+
+## Planned Architecture Evolution
+
+The prototype is a single-process, in-memory system. The full GSoC implementation will evolve toward a layered architecture:
+
+```
+┌─────────────────────┐
+│  Driver Android App  │  Kotlin · FusedLocationProvider · Foreground Service
+│  (GPS → REST POST)   │
+└────────┬────────────┘
+         │ HTTPS + JWT
+         ▼
+┌─────────────────────┐
+│  API Gateway         │  Auth middleware · Rate limiting · Request validation
+└────────┬────────────┘
+         │
+         ▼
+┌─────────────────────┐
+│  Location Ingestion  │  POST /api/v1/locations
+│  Service             │  Validate → Update state → Persist to DB
+└────────┬────────────┘
+         │
+    ┌────┴────┐
+    ▼         ▼
+┌────────┐ ┌──────────────┐
+│ Vehicle│ │  PostgreSQL   │  Location history · Trip records · Driver accounts
+│ State  │ │  (persistent) │
+│ (live) │ └──────────────┘
+└────┬───┘
+     │
+     ▼
+┌─────────────────────┐
+│  GTFS-RT Feed        │  GET /gtfs-rt/vehicle-positions
+│  Generator           │  State → FeedMessage → Protobuf serialization
+└────────┬────────────┘
+         │
+         ▼
+┌─────────────────────┐
+│  Transit Consumers   │  OneBusAway · Google Maps · Other GTFS-RT readers
+└─────────────────────┘
+```
+
+This separation allows:
+- **Scalable ingestion** — location writes don't block feed reads
+- **Independent feed generation** — feed can be cached and served from CDN
+- **Operational monitoring** — each layer can be observed independently
+- **Easier testing** — components can be tested in isolation
+
+---
+
+## Relation to OneBusAway Vehicle Positions Project
+
+This prototype is built in alignment with the [official project outline](https://github.com/OneBusAway/vehicle-positions) for GSoC 2026:
+
+**Milestone 1 objectives addressed by this prototype:**
+
+| Official Requirement | Status |
+|---|---|
+| Initialize Go project with module structure | ✅ Done |
+| Implement `POST /api/v1/locations` — accept, validate, persist, update state | ✅ Done |
+| Implement `GET /gtfs-rt/vehicle-positions` — build FeedMessage, serialize protobuf | ✅ Done |
+| Add JSON output option for debugging (`?format=json`) | ✅ Done |
+| Define and compile `gtfs-realtime.proto` into Go code | ✅ Done |
+| Write tests: submit locations, fetch feed, verify protobuf contents | ✅ Done (11 tests) |
+
+**Future work (Milestones 2–5) to extend this prototype:**
+
+- **Authentication** — JWT for drivers, API keys for feed consumers
+- **Database persistence** — SQLite for small deployments, PostgreSQL for larger ones
+- **Android driver app** — Kotlin, Jetpack Compose, foreground service with `FusedLocationProviderClient`
+- **Admin web interface** — Vehicle map (Leaflet/OSM), driver/vehicle CRUD, trip history
+- **Deployment** — Dockerfile, docker-compose, production deployment guide
+
+---
+
+## Quick Demo
+
+Start the server and simulate a bus reporting its position:
+
+```bash
+# Terminal 1: Start the server
+./vehicle-tracker
+
+# Terminal 2: Send a bus location (Nairobi, Kenya)
+curl -s -X POST http://localhost:8081/api/v1/locations \
+  -H "Content-Type: application/json" \
+  -d '{
+    "vehicle_id": "matatu-42",
+    "trip_id": "route_5_0830",
+    "route_id": "5",
+    "latitude": -1.2921,
+    "longitude": 36.8219,
+    "bearing": 180.0,
+    "speed": 8.5,
+    "timestamp": 1752566400
+  }'
+# → {"status":"ok"}
+
+# Terminal 2: Fetch the GTFS-RT feed (JSON)
+curl -s "http://localhost:8081/gtfs-rt/vehicle-positions?format=json" | python3 -m json.tool
+# → Full GTFS-RT FeedMessage with the vehicle position
+
+# Terminal 2: Check system health
+curl -s http://localhost:8081/api/v1/status | python3 -m json.tool
+# → {"status":"ok","active_vehicles":1,...}
+```
