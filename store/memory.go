@@ -15,7 +15,8 @@ import (
 	"github.com/jaggu/vehicle-tracker-prototype/model"
 )
 
-// MemoryStore holds the latest known location for each vehicle.
+// MemoryStore holds the latest known location for each vehicle,
+// and the registered driver profiles.
 type MemoryStore struct {
 	mu        sync.RWMutex
 	locations map[string]model.Location
@@ -24,6 +25,9 @@ type MemoryStore struct {
 	// stored, so we can apply staleness filtering independently of the
 	// client-supplied timestamp.
 	receivedAt map[string]time.Time
+
+	// drivers holds registered driver profiles, keyed by driver ID.
+	drivers map[string]model.Driver
 }
 
 // New creates and returns an empty MemoryStore.
@@ -31,6 +35,7 @@ func New() *MemoryStore {
 	return &MemoryStore{
 		locations:  make(map[string]model.Location),
 		receivedAt: make(map[string]time.Time),
+		drivers:    make(map[string]model.Driver),
 	}
 }
 
@@ -94,4 +99,51 @@ func (s *MemoryStore) TotalVehicleCount() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.locations)
+}
+
+// UpsertDriver stores (or overwrites) a driver profile.
+// It returns false if a driver with the same ID already exists (update),
+// or true if the driver is newly created.
+func (s *MemoryStore) UpsertDriver(d model.Driver) (created bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, exists := s.drivers[d.ID]
+	s.drivers[d.ID] = d
+	return !exists
+}
+
+// GetDriver returns the driver profile for the given ID.
+// The second return value is false when no such driver exists.
+func (s *MemoryStore) GetDriver(id string) (model.Driver, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	d, ok := s.drivers[id]
+	return d, ok
+}
+
+// GetAllDrivers returns a snapshot of all registered driver profiles.
+func (s *MemoryStore) GetAllDrivers() []model.Driver {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	result := make([]model.Driver, 0, len(s.drivers))
+	for _, d := range s.drivers {
+		result = append(result, d)
+	}
+	return result
+}
+
+// DeleteDriver removes a driver profile by ID.
+// It returns true if the driver was found and deleted, false if not found.
+func (s *MemoryStore) DeleteDriver(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, exists := s.drivers[id]
+	if exists {
+		delete(s.drivers, id)
+	}
+	return exists
 }

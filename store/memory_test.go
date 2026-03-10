@@ -104,3 +104,100 @@ func TestMemoryStore_ExpandedFields(t *testing.T) {
 		t.Errorf("speed = %f, want 8.5", all[0].Speed)
 	}
 }
+
+func TestMemoryStore_UpsertAndGetDriver(t *testing.T) {
+	s := store.New()
+
+	d := model.Driver{ID: "driver-1", Name: "Alice", Email: "alice@example.com"}
+
+	created := s.UpsertDriver(d)
+	if !created {
+		t.Errorf("UpsertDriver should return true (created) on first insert")
+	}
+
+	got, ok := s.GetDriver("driver-1")
+	if !ok {
+		t.Fatal("GetDriver: expected to find driver-1")
+	}
+	if got.Name != "Alice" {
+		t.Errorf("Name = %q, want %q", got.Name, "Alice")
+	}
+	if got.Email != "alice@example.com" {
+		t.Errorf("Email = %q, want %q", got.Email, "alice@example.com")
+	}
+}
+
+func TestMemoryStore_UpdateDriver(t *testing.T) {
+	s := store.New()
+
+	s.UpsertDriver(model.Driver{ID: "driver-1", Name: "Alice"})
+
+	// Update — should return false (not a new record)
+	created := s.UpsertDriver(model.Driver{ID: "driver-1", Name: "Alice Updated", Phone: "555-1234"})
+	if created {
+		t.Errorf("UpsertDriver should return false (updated) when driver already exists")
+	}
+
+	got, _ := s.GetDriver("driver-1")
+	if got.Name != "Alice Updated" {
+		t.Errorf("Name after update = %q, want %q", got.Name, "Alice Updated")
+	}
+	if got.Phone != "555-1234" {
+		t.Errorf("Phone after update = %q, want %q", got.Phone, "555-1234")
+	}
+}
+
+func TestMemoryStore_GetAllDrivers(t *testing.T) {
+	s := store.New()
+
+	s.UpsertDriver(model.Driver{ID: "d1", Name: "Alice"})
+	s.UpsertDriver(model.Driver{ID: "d2", Name: "Bob"})
+
+	all := s.GetAllDrivers()
+	if len(all) != 2 {
+		t.Fatalf("expected 2 drivers, got %d", len(all))
+	}
+}
+
+func TestMemoryStore_GetAllDrivers_Empty(t *testing.T) {
+	s := store.New()
+
+	all := s.GetAllDrivers()
+	if len(all) != 0 {
+		t.Errorf("expected 0 drivers on empty store, got %d", len(all))
+	}
+}
+
+func TestMemoryStore_DeleteDriver(t *testing.T) {
+	s := store.New()
+
+	s.UpsertDriver(model.Driver{ID: "driver-1", Name: "Alice"})
+
+	deleted := s.DeleteDriver("driver-1")
+	if !deleted {
+		t.Errorf("DeleteDriver should return true when driver exists")
+	}
+
+	_, ok := s.GetDriver("driver-1")
+	if ok {
+		t.Errorf("driver-1 should not be found after deletion")
+	}
+}
+
+func TestMemoryStore_DeleteDriver_NotFound(t *testing.T) {
+	s := store.New()
+
+	deleted := s.DeleteDriver("nonexistent")
+	if deleted {
+		t.Errorf("DeleteDriver should return false when driver does not exist")
+	}
+}
+
+func TestMemoryStore_GetDriver_NotFound(t *testing.T) {
+	s := store.New()
+
+	_, ok := s.GetDriver("nonexistent")
+	if ok {
+		t.Errorf("GetDriver should return false for nonexistent driver")
+	}
+}
